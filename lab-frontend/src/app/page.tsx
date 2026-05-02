@@ -42,7 +42,9 @@ const Dashboard = () => {
       }
     });
 
-    return () => client.end();
+    return () => {
+      client.end();
+    };
   }, []);
 
   return (

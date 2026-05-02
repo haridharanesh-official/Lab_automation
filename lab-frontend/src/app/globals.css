@@ -1,10 +1,16 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter);
+}
 
 @layer base {
   body {
-    @apply bg-[#0f172a] text-slate-200 antialiased overflow-x-hidden;
+    background-color: #0f172a;
+    color: #e2e8f0; /* slate-200 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
     background-image: 
       radial-gradient(at 0% 0%, rgba(30, 27, 75, 0.5) 0px, transparent 50%),
       radial-gradient(at 100% 0%, rgba(15, 23, 42, 0.5) 0px, transparent 50%),
@@ -23,7 +29,17 @@
   }
   
   .glass-card {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl transition-all duration-500 hover:bg-white/10;
+    background-color: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 500ms;
+  }
+  
+  .glass-card:hover {
+    background-color: rgba(255, 255, 255, 0.1);
   }
 }
 
