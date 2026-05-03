@@ -2,182 +2,215 @@
 
 import React, { useState, useEffect } from 'react';
 import mqtt from 'mqtt';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  LineChart, 
+  Line, 
+  ResponsiveContainer 
+} from 'recharts';
 import { 
   Shield, 
-  Scan, 
-  Activity, 
   Thermometer, 
+  Droplets, 
   Lightbulb, 
-  Cpu, 
-  Settings, 
-  UserCheck,
-  AlertCircle
+  Zap, 
+  Fan, 
+  Lock,
+  Wind,
+  Navigation
 } from 'lucide-react';
+
+// Sample data for sparklines
+const data = [
+  { value: 40 }, { value: 30 }, { value: 45 }, { value: 35 }, 
+  { value: 55 }, { value: 40 }, { value: 50 }
+];
 
 interface CameraState {
   camera_zone: string;
   face_detected: boolean;
-  timestamp?: string;
+  distance: number;
 }
 
 const Dashboard = () => {
   const [cameraState, setCameraState] = useState<CameraState>({
     camera_zone: "Workstation",
-    face_detected: false
+    face_detected: false,
+    distance: 1.4
   });
-  const [relayState, setRelayState] = useState(false);
-  const [temp, setTemp] = useState(24.5);
+  const [lightsOn, setLightsOn] = useState(false);
+  const [fanOn, setFanOn] = useState(false);
 
   useEffect(() => {
     const client = mqtt.connect('ws://localhost:9001');
-
-    client.on('connect', () => {
-      client.subscribe('lab/security/camera');
-    });
-
+    client.on('connect', () => client.subscribe('lab/security/camera'));
     client.on('message', (topic, message) => {
       if (topic === 'lab/security/camera') {
         const data = JSON.parse(message.toString());
-        setCameraState(data);
+        setCameraState(prev => ({ ...prev, ...data }));
       }
     });
-
-    return () => {
-      client.end();
-    };
+    return () => { client.end(); };
   }, []);
 
   return (
-    <div className="min-h-screen p-6 md:p-10 animated-bg scrollbar-hide">
-      <header className="mb-10 flex justify-between items-end">
-        <div>
-          <h1 className="text-5xl font-black text-white tracking-tighter uppercase">
-            Smart Lab <span className="text-blue-500">Core</span>
-          </h1>
-          <p className="text-slate-400 mt-2 font-medium tracking-wide">Autonomous Infrastructure Dashboard</p>
+    <div className="min-h-screen scrollbar-hide">
+      
+      {/* Top Status Pills */}
+      <div className="flex flex-wrap gap-3 px-6 pt-6 mb-4">
+        <div className="rounded-full bg-white/15 backdrop-blur-md px-4 py-2 border border-white/10 flex items-center gap-2">
+          <Thermometer size={14} className="text-white/70" />
+          <span className="text-xs font-bold text-white">Climate 72°</span>
         </div>
-        <div className="hidden md:flex gap-4">
-          <div className="glass-card rounded-2xl px-6 py-3 flex items-center gap-3">
-            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-sm font-bold tracking-widest text-slate-300">SYSTEM ONLINE</span>
+        <div className="rounded-full bg-white/15 backdrop-blur-md px-4 py-2 border border-white/10 flex items-center gap-2">
+          <Lightbulb size={14} className={lightsOn ? "text-amber-400" : "text-white/70"} />
+          <span className="text-xs font-bold text-white">Lights: {lightsOn ? '1' : '0'} On</span>
+        </div>
+        <div className="rounded-full bg-white/15 backdrop-blur-md px-4 py-2 border border-white/10 flex items-center gap-2">
+          <Shield size={14} className={cameraState.face_detected ? "text-red-400" : "text-white/70"} />
+          <span className="text-xs font-bold text-white">Radar: Active</span>
+        </div>
+      </div>
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 pt-2">
+        
+        {/* Main Radar / Security Card (2x2) */}
+        <div className="col-span-2 row-span-2 apple-glass rounded-[32px] p-6 relative flex flex-col items-center justify-center overflow-hidden">
+          {/* Pulsing background for detection */}
+          <AnimatePresence>
+            {cameraState.face_detected && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 0.4, scale: 1.5 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="absolute w-full h-full bg-radial from-red-500/50 to-transparent z-0"
+              />
+            )}
+          </AnimatePresence>
+
+          <div className="z-10 text-center">
+            <motion.div 
+              animate={{ opacity: cameraState.face_detected ? 1 : 0.7 }}
+              className="text-8xl md:text-9xl font-extralight tracking-tighter text-white mb-2"
+            >
+              {cameraState.distance.toFixed(1)}<span className="text-3xl">m</span>
+            </motion.div>
+            <div className="flex items-center justify-center gap-2">
+              <div className={`h-2 w-2 rounded-full ${cameraState.face_detected ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
+              <span className="text-xs font-black uppercase tracking-widest text-white/50">
+                {cameraState.face_detected ? 'Authorized Presence' : 'Secure Scanning'}
+              </span>
+            </div>
+          </div>
+
+          <div className="absolute top-6 left-6 p-3 bg-white/5 rounded-2xl border border-white/10">
+            <Navigation size={24} className="text-white/70" />
           </div>
         </div>
-      </header>
 
-      {/* Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 grid-rows-auto md:grid-rows-2 gap-6">
-        
-        {/* Main Camera/Radar - Bento Piece (2x2) */}
-        <div 
-          className={`md:col-span-2 md:row-span-2 glass-card rounded-[40px] p-8 flex flex-col justify-between group overflow-hidden relative ${
-            cameraState.face_detected 
-              ? 'ring-2 ring-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.2)]' 
-              : ''
+        {/* Lab Temp Card */}
+        <div className="apple-glass rounded-[32px] p-5 flex flex-col justify-between group">
+          <div className="flex justify-between items-start">
+            <Thermometer size={20} className="text-blue-400" />
+            <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">Live</span>
+          </div>
+          <div className="text-center py-4">
+            <span className="text-5xl font-bold text-white tracking-tight">24</span>
+            <span className="text-xl font-medium text-blue-400 ml-1">°C</span>
+          </div>
+          <div className="flex justify-between items-end">
+            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Lab Temp</span>
+            <div className="w-12 h-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data}>
+                  <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Humidity Card */}
+        <div className="apple-glass rounded-[32px] p-5 flex flex-col justify-between group">
+          <div className="flex justify-between items-start">
+            <Droplets size={20} className="text-cyan-400" />
+            <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">Live</span>
+          </div>
+          <div className="text-center py-4">
+            <span className="text-5xl font-bold text-white tracking-tight">42</span>
+            <span className="text-xl font-medium text-cyan-400 ml-1">%</span>
+          </div>
+          <div className="flex justify-between items-end">
+            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Humidity</span>
+            <div className="w-12 h-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data}>
+                  <Line type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Light Toggle */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setLightsOn(!lightsOn)}
+          className={`apple-glass rounded-[32px] p-5 flex flex-col justify-between text-left transition-colors duration-500 ${
+            lightsOn ? 'bg-amber-500/80 border-amber-400/50' : ''
           }`}
         >
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-            {cameraState.face_detected ? <UserCheck size={200} /> : <Scan size={200} />}
+          <Lightbulb size={24} className={lightsOn ? "text-white" : "text-amber-500"} />
+          <div>
+            <span className={`block text-xs font-black uppercase tracking-widest mb-1 ${lightsOn ? 'text-white/70' : 'text-white/30'}`}>
+              Main Relay
+            </span>
+            <span className="text-xl font-bold text-white leading-tight">
+              {lightsOn ? 'Lights Active' : 'Lights Off'}
+            </span>
           </div>
+        </motion.button>
 
-          <div className="z-10">
-            <div className="flex justify-between items-start mb-10">
-              <div className="p-4 bg-white/5 rounded-3xl border border-white/10">
-                <Shield className={cameraState.face_detected ? "text-emerald-400" : "text-slate-400"} size={32} />
-              </div>
-              <div className={`px-5 py-2 rounded-full text-xs font-black tracking-widest uppercase ${
-                cameraState.face_detected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-500'
-              }`}>
-                {cameraState.face_detected ? 'Authorized Presence' : 'Scanning Zone'}
-              </div>
-            </div>
-            
-            <h2 className="text-4xl font-bold text-white mb-2">Workstation Vision</h2>
-            <p className="text-slate-400 text-lg">Active monitor for Main Lab Entry</p>
+        {/* Fan Toggle */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setFanOn(!fanOn)}
+          className={`apple-glass rounded-[32px] p-5 flex flex-col justify-between text-left transition-colors duration-500 ${
+            fanOn ? 'bg-blue-500/80 border-blue-400/50' : ''
+          }`}
+        >
+          <Fan size={24} className={`${fanOn ? "text-white animate-spin" : "text-blue-500"}`} />
+          <div>
+            <span className={`block text-xs font-black uppercase tracking-widest mb-1 ${fanOn ? 'text-white/70' : 'text-white/30'}`}>
+              Exhaust
+            </span>
+            <span className="text-xl font-bold text-white leading-tight">
+              {fanOn ? 'Fan Running' : 'Fan Off'}
+            </span>
           </div>
+        </motion.button>
 
-          <div className="z-10 flex gap-4 mt-10">
-            <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md">
-              <span className="block text-slate-500 text-xs font-bold uppercase mb-2">Zone Status</span>
-              <span className={`text-xl font-bold ${cameraState.face_detected ? 'text-emerald-400' : 'text-slate-300'}`}>
-                {cameraState.face_detected ? 'OCCUPIED' : 'SECURE'}
-              </span>
-            </div>
-            <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md">
-              <span className="block text-slate-500 text-xs font-bold uppercase mb-2">Latency</span>
-              <span className="text-xl font-bold text-slate-300">12ms</span>
-            </div>
-          </div>
-        </div>
-
-        {/* AI Assistant Bento (1x1) */}
-        <div className="glass-card rounded-[40px] p-8 bg-purple-900/10 border-purple-500/20 group hover:bg-purple-900/20 transition-all flex flex-col justify-between">
-          <div className="flex justify-between items-center mb-6">
-            <div className="p-3 bg-purple-500/20 rounded-2xl border border-purple-500/30">
-              <Cpu className="text-purple-400" size={24} />
-            </div>
-            <span className="text-purple-400 text-xs font-bold tracking-widest">AI CORE</span>
+        {/* Power Usage (Small) */}
+        <div className="apple-glass rounded-[32px] p-5 flex items-center gap-4">
+          <div className="p-3 bg-white/10 rounded-2xl">
+            <Zap size={20} className="text-yellow-400" />
           </div>
           <div>
-            <h3 className="text-2xl font-bold text-white mb-2">Smart Assistant</h3>
-            <p className="text-slate-400 text-sm leading-relaxed">Neural control engine active and ready.</p>
+            <span className="block text-[10px] font-black text-white/30 uppercase tracking-widest mb-0.5">Energy</span>
+            <span className="text-lg font-bold text-white">4.2<span className="text-xs ml-0.5 font-medium opacity-50">kW</span></span>
           </div>
-          <button className="mt-8 py-4 bg-purple-500 text-white rounded-2xl font-bold hover:bg-purple-600 transition-all shadow-lg shadow-purple-500/20">
-            Launch AI
-          </button>
         </div>
 
-        {/* Environment Card (1x1) */}
-        <div className="glass-card rounded-[40px] p-8 flex flex-col justify-between">
-          <div className="flex justify-between items-center mb-6">
-            <div className="p-3 bg-blue-500/20 rounded-2xl border border-blue-500/30">
-              <Thermometer className="text-blue-400" size={24} />
-            </div>
-            <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse"></div>
+        {/* Lock Status (Small) */}
+        <div className="apple-glass rounded-[32px] p-5 flex items-center gap-4">
+          <div className="p-3 bg-white/10 rounded-2xl">
+            <Lock size={20} className="text-emerald-400" />
           </div>
           <div>
-            <div className="flex items-end gap-1 mb-2">
-              <span className="text-5xl font-black text-white">{temp}</span>
-              <span className="text-2xl font-bold text-blue-400 mb-1">°C</span>
-            </div>
-            <p className="text-slate-400 text-sm font-medium tracking-wide">Workstation Temp</p>
-          </div>
-          <div className="mt-6 h-1 w-full bg-white/5 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 w-[65%] rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
-          </div>
-        </div>
-
-        {/* Relay Controls (2x1) */}
-        <div className="md:col-span-2 glass-card rounded-[40px] p-8">
-          <div className="flex justify-between items-center mb-8">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-amber-500/20 rounded-2xl border border-amber-500/30">
-                <Lightbulb className={relayState ? "text-amber-400" : "text-slate-500"} size={24} />
-              </div>
-              <h3 className="text-2xl font-bold text-white">Power Control</h3>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <button 
-              onClick={() => setRelayState(!relayState)}
-              className={`p-6 rounded-3xl border transition-all duration-500 text-left ${
-                relayState 
-                  ? 'bg-amber-500/20 border-amber-500/50 shadow-[0_0_30px_rgba(245,158,11,0.15)]' 
-                  : 'bg-white/5 border-white/10 hover:bg-white/10'
-              }`}
-            >
-              <span className={`block text-xs font-bold uppercase tracking-widest mb-2 ${relayState ? 'text-amber-400' : 'text-slate-500'}`}>
-                Main Lights
-              </span>
-              <span className={`text-xl font-bold ${relayState ? 'text-white' : 'text-slate-400'}`}>
-                {relayState ? 'SYSTEM ON' : 'SYSTEM OFF'}
-              </span>
-            </button>
-            
-            <button className="p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-left group">
-              <span className="block text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">Exhaust Fan</span>
-              <span className="text-xl font-bold text-slate-400 group-hover:text-slate-300">OFFLINE</span>
-            </button>
+            <span className="block text-[10px] font-black text-white/30 uppercase tracking-widest mb-0.5">Entry</span>
+            <span className="text-lg font-bold text-white">Secure</span>
           </div>
         </div>
 
