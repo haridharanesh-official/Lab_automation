@@ -6,13 +6,11 @@
 
 @layer base {
   body {
-    @apply antialiased;
-    /* Vibrant Mesh Background */
-    background: radial-gradient(ellipse at top right, #312e81, #0f172a, #064e3b);
+    @apply bg-[#1a242f] text-slate-800 antialiased;
+    background: radial-gradient(at 50% 50%, #2c3e50 0%, #1a242f 100%);
     background-attachment: fixed;
     min-height: 100vh;
     overflow-x: hidden;
-    color: white;
   }
 }
 
@@ -25,18 +23,11 @@
     scrollbar-width: none;
   }
   
-  /* True Glass Material */
-  .true-glass {
-    background-color: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(64px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    border-radius: 32px;
+  .ha-card {
+    @apply bg-white rounded-[12px] p-4 shadow-xl border border-white/10;
   }
 
-  .neon-status {
-    background-color: rgba(16, 185, 129, 0.1);
-    color: #6ee7b7;
-    border: 1px solid rgba(16, 185, 129, 0.2);
+  .sidebar-icon {
+    @apply p-2 rounded-lg transition-colors cursor-pointer text-slate-500 hover:bg-slate-100 hover:text-slate-900;
   }
 }
