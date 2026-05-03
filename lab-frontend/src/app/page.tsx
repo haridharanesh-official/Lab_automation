@@ -17,7 +17,7 @@ import {
   Droplets, Fan, Snowflake, Cpu, ChevronUp, ChevronDown, Bot, Moon
 } from 'lucide-react';
 
-// Design Constants from Stitch "Kinetic Lab Systems"
+// Design Constants
 const BENTO_GAP = "gap-[20px]";
 const CORNER_RADIUS = "rounded-[32px]";
 const GLASS_BASE = "backdrop-blur-3xl bg-white/5 border border-white/10 shadow-2xl";
@@ -38,55 +38,69 @@ const Dashboard = () => {
   const [mounted, setMounted] = useState(false);
   const [mqttClient, setMqttClient] = useState<mqtt.MqttClient | null>(null);
 
+  // Global State Management (User Requested)
   const [lights, setLights] = useState(Array(6).fill(false));
   const [fans, setFans] = useState(Array(4).fill(false));
-  const [acs, setAcs] = useState(Array(2).fill(false));
-  const [envData, setEnvData] = useState({ temperature: 24.2, humidity: 42, power: 4.28 });
-  const [targetTemp, setTargetTemp] = useState(73);
-  const [security, setSecurity] = useState({ presenceDetected: false, armed: false, locked: false });
+  const [ac, setAc] = useState(Array(2).fill(false));
+  const [environment, setEnvironment] = useState({ temperature: 0, humidity: 0, power: 0 });
+  const [security, setSecurity] = useState({ authorized: false, armed: false, presence: false });
 
   useEffect(() => setMounted(true), []);
 
+  // MQTT Bridge (User Requested)
   useEffect(() => {
     const client = mqtt.connect('ws://localhost:9001');
+
     client.on('connect', () => {
+      console.log("MQTT Connected to Smart Lab");
       client.subscribe(['lab/telemetry/environment', 'lab/security/vision']);
       setMqttClient(client);
     });
+
     client.on('message', (topic, message) => {
       try {
         const payload = JSON.parse(message.toString());
+        
         if (topic === 'lab/telemetry/environment') {
-          setEnvData(prev => ({ ...prev, ...payload }));
+          setEnvironment({
+            temperature: payload.temperature ?? 0,
+            humidity: payload.humidity ?? 0,
+            power: payload.power ?? 0
+          });
         } else if (topic === 'lab/security/vision') {
-          setSecurity(prev => ({ ...prev, presenceDetected: payload.presence === true }));
+          setSecurity(prev => ({
+            ...prev,
+            presence: payload.presence === true,
+            authorized: payload.presence === true // Mapping presence to authorized for UI binding
+          }));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("MQTT Parse Error:", e);
+      }
     });
+
     return () => { client.end(); };
   }, []);
 
-  const sendCommand = (topic: string, payload: any) => {
-    if (mqttClient) mqttClient.publish(topic, JSON.stringify(payload));
-  };
-
-  const toggleDevice = (type: 'light' | 'fan' | 'ac', index: number) => {
+  // Hardware Actuation (User Requested)
+  const handleToggle = (type: 'light' | 'fan' | 'ac', index: number) => {
     let newState = false;
-    let topic = "";
+    let topic = `lab/relay/${type}/${index + 1}`; // User example used 1-based indexing in description "light/1"
+
     if (type === 'light') {
       const updated = [...lights]; updated[index] = !updated[index];
       newState = updated[index]; setLights(updated);
-      topic = `lab/relay/light/${index + 1}`;
     } else if (type === 'fan') {
       const updated = [...fans]; updated[index] = !updated[index];
       newState = updated[index]; setFans(updated);
-      topic = `lab/relay/fan/${index + 1}`;
     } else if (type === 'ac') {
-      const updated = [...acs]; updated[index] = !updated[index];
-      newState = updated[index]; setAcs(updated);
-      topic = `lab/relay/ac/${index + 1}`;
+      const updated = [...ac]; updated[index] = !updated[index];
+      newState = updated[index]; setAc(updated);
     }
-    sendCommand(topic, { state: newState ? "ON" : "OFF" });
+
+    if (mqttClient) {
+      mqttClient.publish(topic, JSON.stringify({ state: newState ? "ON" : "OFF" }));
+    }
   };
 
   const DeviceToggle = ({ icon: Icon, label, isOn, onToggle, colorClass, glowColor }: any) => (
@@ -113,10 +127,10 @@ const Dashboard = () => {
   return (
     <div className="flex h-screen overflow-hidden font-sans bg-black">
       
-      {/* Background Mesh - Core Design Principle */}
+      {/* Background Mesh */}
       <div className="fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-900 to-emerald-900/20"></div>
 
-      {/* Sidebar - Minimalist Kinetic Design */}
+      {/* Sidebar */}
       <aside className="w-24 relative z-10 bg-white/5 backdrop-blur-2xl flex flex-col items-center py-10 border-r border-white/10 hidden md:flex">
         <div className="sidebar-icon mb-12 p-4 !bg-indigo-600 !text-white rounded-[20px] shadow-xl shadow-indigo-600/20"><Cpu size={28} /></div>
         <div className="space-y-8 flex-1">
@@ -167,9 +181,9 @@ const Dashboard = () => {
                   <div className="flex flex-col">
                     <span className="text-[12px] font-black text-white uppercase tracking-wider">{user.name}</span>
                     <span className={`text-[10px] font-bold uppercase tracking-[0.1em] ${
-                      security.presenceDetected ? 'text-emerald-400 animate-pulse' : 'text-white/30'
+                      security.presence ? 'text-emerald-400 animate-pulse' : 'text-white/30'
                     }`}>
-                      {security.presenceDetected ? 'ACTIVE' : 'STANDBY'}
+                      {security.presence ? 'AUTHORIZED' : 'SCANNING...'}
                     </span>
                   </div>
                 </div>
@@ -180,14 +194,14 @@ const Dashboard = () => {
                 <div className="p-2 bg-blue-500/20 rounded-xl"><Thermometer size={18} className="text-blue-400" /></div>
                 <div className="flex flex-col">
                   <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Ambient</span>
-                  <span className="text-lg font-black text-white">{envData.temperature.toFixed(1)}°C</span>
+                  <span className="text-lg font-black text-white">{environment.temperature.toFixed(1)} °C</span>
                 </div>
               </div>
               <div className={`${GLASS_BASE} ${CORNER_RADIUS} !py-4 !px-8 flex items-center gap-4`}>
                 <div className="p-2 bg-amber-500/20 rounded-xl"><Flash size={18} className="text-amber-400" /></div>
                 <div className="flex flex-col">
                   <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Load</span>
-                  <span className="text-lg font-black text-white">{envData.power.toFixed(2)}kW</span>
+                  <span className="text-lg font-black text-white">{environment.power.toFixed(2)} kWh</span>
                 </div>
               </div>
             </div>
@@ -204,7 +218,7 @@ const Dashboard = () => {
                 </div>
                 <div className="px-4 py-1.5 bg-white/5 rounded-full border border-white/5">
                   <span className="text-[11px] font-black text-white/40 uppercase tracking-[0.2em]">
-                    {lights.filter(l => l).length}/6 ACTIVE
+                    {lights.filter(l => l).length}/6 ON
                   </span>
                 </div>
               </div>
@@ -212,7 +226,7 @@ const Dashboard = () => {
                 {lights.map((isOn, i) => (
                   <DeviceToggle 
                     key={i} icon={Lightbulb} label={`Array Unit ${i + 1}`} 
-                    isOn={isOn} onToggle={() => toggleDevice('light', i)} 
+                    isOn={isOn} onToggle={() => handleToggle('light', i)} 
                     colorClass="bg-amber-500/20 text-amber-500"
                     glowColor="shadow-[0_0_20px_rgba(245,158,11,0.2)]"
                   />
@@ -229,8 +243,8 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="mt-8 grid grid-cols-2 gap-6">
-                {acs.map((isOn, i) => (
-                  <motion.div key={i} whileTap={{ scale: 0.95 }} onClick={() => toggleDevice('ac', i)}
+                {ac.map((isOn, i) => (
+                  <motion.div key={i} whileTap={{ scale: 0.95 }} onClick={() => handleToggle('ac', i)}
                     className={`p-6 rounded-[24px] border flex flex-col gap-6 cursor-pointer transition-all duration-700 ${
                       isOn ? 'bg-indigo-600 border-indigo-400 text-white shadow-2xl shadow-indigo-600/50' : 'bg-white/5 border-transparent text-white/30'
                     }`}
@@ -247,7 +261,7 @@ const Dashboard = () => {
                 <span className="text-[11px] font-black uppercase tracking-widest text-white/40">RH %</span>
                 <Droplets size={18} className="text-blue-400" />
               </div>
-              <div className="my-4 text-5xl font-light text-white">{envData.humidity}<span className="text-xl opacity-20 ml-2">%</span></div>
+              <div className="my-4 text-5xl font-light text-white">{environment.humidity}<span className="text-xl opacity-20 ml-2">%</span></div>
               <div className="h-14 w-full opacity-30">
                 <ResponsiveContainer width="100%" height="100%"><AreaChart data={sparkData}><Area type="monotone" dataKey="val" stroke="#6366F1" fill="#6366F1" fillOpacity={0.2} strokeWidth={3} /></AreaChart></ResponsiveContainer>
               </div>
@@ -258,7 +272,7 @@ const Dashboard = () => {
                 <span className="text-[11px] font-black uppercase tracking-widest text-white/40">TEMP C</span>
                 <Thermometer size={18} className="text-orange-500" />
               </div>
-              <div className="my-4 text-5xl font-light text-white">{envData.temperature.toFixed(1)}<span className="text-xl opacity-20 ml-2">°</span></div>
+              <div className="my-4 text-5xl font-light text-white">{environment.temperature.toFixed(1)}<span className="text-xl opacity-20 ml-2">°</span></div>
               <div className="h-14 w-full opacity-30">
                 <ResponsiveContainer width="100%" height="100%"><AreaChart data={sparkData}><Area type="monotone" dataKey="val" stroke="#F97316" fill="#F97316" fillOpacity={0.2} strokeWidth={3} /></AreaChart></ResponsiveContainer>
               </div>
@@ -271,13 +285,13 @@ const Dashboard = () => {
                   <div className="p-3 bg-emerald-500/10 rounded-2xl"><Wind size={24} className="text-emerald-500" /></div>
                   <span className="text-base font-black uppercase tracking-[0.3em] text-white">Ventilation</span>
                 </div>
-                <span className="text-[11px] font-black text-white/40 uppercase tracking-widest">{fans.filter(f => f).length}/4 ACTIVE</span>
+                <span className="text-[11px] font-black text-white/40 uppercase tracking-widest">{fans.filter(f => f).length}/4 ON</span>
               </div>
               <div className="grid grid-cols-2 gap-x-10">
                 {fans.map((isOn, i) => (
                   <DeviceToggle 
                     key={i} icon={Fan} label={`Unit ${i + 1}`} 
-                    isOn={isOn} onToggle={() => toggleDevice('fan', i)} 
+                    isOn={isOn} onToggle={() => handleToggle('fan', i)} 
                     colorClass="bg-emerald-500/20 text-emerald-500"
                     glowColor="shadow-[0_0_20px_rgba(16,185,129,0.2)]"
                   />
@@ -291,14 +305,14 @@ const Dashboard = () => {
                 <div>
                   <span className="text-base font-black block uppercase tracking-[0.3em] mb-3 text-white">Security</span>
                   <div className="flex items-center gap-3">
-                    <div className={`h-2 w-2 rounded-full ${security.presenceDetected ? 'bg-emerald-500 animate-ping' : 'bg-white/20'}`}></div>
-                    <span className={`text-[11px] font-black uppercase tracking-[0.3em] ${security.presenceDetected ? 'text-emerald-400' : 'text-white/20'}`}>
-                      {security.presenceDetected ? 'PERSON DETECTED' : 'AREA SCANNING'}
+                    <div className={`h-2 w-2 rounded-full ${security.presence ? 'bg-emerald-500 animate-ping' : 'bg-white/20'}`}></div>
+                    <span className={`text-[11px] font-black uppercase tracking-[0.3em] ${security.presence ? 'text-emerald-400' : 'text-slate-400'}`}>
+                      {security.presence ? 'AUTHORIZED' : 'SCANNING...'}
                     </span>
                   </div>
                 </div>
                 <div className={`h-16 w-16 rounded-[22px] border flex items-center justify-center transition-all duration-700 ${
-                  security.presenceDetected ? 'bg-emerald-500 border-emerald-400 text-white shadow-2xl shadow-emerald-500/40' : 'bg-white/5 border-transparent text-white/10'
+                  security.presence ? 'bg-emerald-500 border-emerald-400 text-white shadow-2xl shadow-emerald-500/40' : 'bg-white/5 border-transparent text-white/10'
                 }`}><ShieldCheck size={32} /></div>
               </div>
               <div className="flex gap-5">
@@ -314,7 +328,7 @@ const Dashboard = () => {
                 <div className="flex flex-col">
                   <span className="block text-[11px] font-black text-white/30 uppercase tracking-[0.4em] mb-3">Live Consumption</span>
                   <span className="text-4xl font-black text-white italic tracking-tighter">
-                    {envData.power.toFixed(2)} <span className="text-sm font-medium opacity-20 tracking-normal not-italic ml-2 text-white">kWh</span>
+                    {environment.power.toFixed(2)} <span className="text-sm font-medium opacity-20 tracking-normal not-italic ml-2 text-white">kWh</span>
                   </span>
                 </div>
               </div>
