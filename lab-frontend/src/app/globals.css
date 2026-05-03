@@ -6,12 +6,12 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-white antialiased;
-    background: radial-gradient(at 0% 0%, #0d9488 0%, transparent 50%),
-                radial-gradient(at 100% 0%, #1e1b4b 0%, transparent 50%),
-                radial-gradient(at 50% 50%, #0f172a 0%, transparent 100%),
-                radial-gradient(at 0% 100%, #312e81 0%, transparent 50%),
-                radial-gradient(at 100% 100%, #0d9488 0%, transparent 50%);
+    @apply bg-[#030712] text-white antialiased;
+    background: radial-gradient(at 0% 0%, #0d948815 0%, transparent 50%),
+                radial-gradient(at 100% 0%, #1e1b4b20 0%, transparent 50%),
+                radial-gradient(at 50% 50%, #030712 0%, transparent 100%),
+                radial-gradient(at 0% 100%, #1e1b4b20 0%, transparent 50%),
+                radial-gradient(at 100% 100%, #0d948815 0%, transparent 50%);
     background-attachment: fixed;
     min-height: 100vh;
     overflow-x: hidden;
@@ -27,8 +27,8 @@
     scrollbar-width: none;
   }
   
-  .apple-glass {
-    @apply bg-white/10 backdrop-blur-2xl border border-white/20 shadow-lg;
+  .premium-glass {
+    @apply bg-white/[0.03] backdrop-blur-3xl border border-white/[0.08] shadow-2xl shadow-black/40 rounded-[32px] p-6 relative overflow-hidden transition-all duration-300 hover:bg-white/[0.06] hover:border-white/[0.12];
   }
 }
 

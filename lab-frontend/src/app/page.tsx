@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import mqtt from 'mqtt';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -13,33 +13,42 @@ import {
   Thermometer, 
   Droplets, 
   Lightbulb, 
-  Zap, 
-  Fan, 
+  Cpu, 
+  Bot,
+  Send,
+  User,
+  Zap,
   Lock,
-  Wind,
-  Navigation
+  Scan,
+  Activity
 } from 'lucide-react';
 
 // Sample data for sparklines
-const data = [
+const sparkData = [
   { value: 40 }, { value: 30 }, { value: 45 }, { value: 35 }, 
   { value: 55 }, { value: 40 }, { value: 50 }
 ];
 
-interface CameraState {
-  camera_zone: string;
-  face_detected: boolean;
-  distance: number;
+interface Message {
+  role: 'user' | 'ai';
+  text: string;
 }
 
 const Dashboard = () => {
-  const [cameraState, setCameraState] = useState<CameraState>({
-    camera_zone: "Workstation",
+  const [cameraState, setCameraState] = useState({
     face_detected: false,
-    distance: 1.4
+    distance: 1.4,
+    zone: "Workstation"
   });
-  const [lightsOn, setLightsOn] = useState(false);
-  const [fanOn, setFanOn] = useState(false);
+  const [lights, setLights] = useState(false);
+  
+  // AI State
+  const [messages, setMessages] = useState<Message[]>([
+    { role: 'ai', text: 'Autonomous assistant online. How can I help?' }
+  ]);
+  const [aiInput, setAiInput] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const client = mqtt.connect('ws://localhost:9001');
@@ -53,164 +62,222 @@ const Dashboard = () => {
     return () => { client.end(); };
   }, []);
 
+  const handleAiSend = async () => {
+    if (!aiInput.trim() || isAiLoading) return;
+    const msg = aiInput.trim();
+    setAiInput('');
+    setMessages(prev => [...prev, { role: 'user', text: msg }]);
+    setIsAiLoading(true);
+
+    try {
+      const res = await fetch('http://localhost:8000/api/ai/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, { role: 'ai', text: data.response }]);
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'ai', text: 'Error connecting to neural core.' }]);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   return (
-    <div className="min-h-screen scrollbar-hide">
+    <div className="min-h-screen p-6 md:p-10 scrollbar-hide">
       
-      {/* Top Status Pills */}
-      <div className="flex flex-wrap gap-3 px-6 pt-6 mb-4">
-        <div className="rounded-full bg-white/15 backdrop-blur-md px-4 py-2 border border-white/10 flex items-center gap-2">
-          <Thermometer size={14} className="text-white/70" />
-          <span className="text-xs font-bold text-white">Climate 72°</span>
+      {/* Page Header */}
+      <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <div>
+          <h1 className="text-4xl md:text-5xl font-extralight tracking-tighter text-white uppercase">
+            Smart Lab <span className="font-black text-teal-400 italic">V2</span>
+          </h1>
+          <p className="text-[10px] font-bold tracking-[0.3em] text-white/40 uppercase mt-2">Autonomous Infrastructure Core</p>
         </div>
-        <div className="rounded-full bg-white/15 backdrop-blur-md px-4 py-2 border border-white/10 flex items-center gap-2">
-          <Lightbulb size={14} className={lightsOn ? "text-amber-400" : "text-white/70"} />
-          <span className="text-xs font-bold text-white">Lights: {lightsOn ? '1' : '0'} On</span>
+        <div className="flex gap-3">
+          <div className="rounded-full bg-white/[0.05] border border-white/[0.1] px-4 py-1.5 flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-pulse"></div>
+            <span className="text-[10px] font-bold tracking-widest text-white/60">SYSTEM STABLE</span>
+          </div>
         </div>
-        <div className="rounded-full bg-white/15 backdrop-blur-md px-4 py-2 border border-white/10 flex items-center gap-2">
-          <Shield size={14} className={cameraState.face_detected ? "text-red-400" : "text-white/70"} />
-          <span className="text-xs font-bold text-white">Radar: Active</span>
-        </div>
-      </div>
+      </header>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 pt-2">
+      {/* Strict Bento Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-3 gap-6 auto-rows-[minmax(180px,auto)] max-w-[1600px] mx-auto">
         
-        {/* Main Radar / Security Card (2x2) */}
-        <div className="col-span-2 row-span-2 apple-glass rounded-[32px] p-6 relative flex flex-col items-center justify-center overflow-hidden">
-          {/* Pulsing background for detection */}
-          <AnimatePresence>
-            {cameraState.face_detected && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 0.4, scale: 1.5 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="absolute w-full h-full bg-radial from-red-500/50 to-transparent z-0"
-              />
-            )}
-          </AnimatePresence>
+        {/* Card 1: Radar/Security (2x2) */}
+        <div className="md:col-span-2 md:row-span-2 premium-glass flex flex-col justify-between group">
+          <div className="flex justify-between items-start">
+            <div className="p-3 bg-white/[0.05] rounded-2xl border border-white/[0.1]">
+              <Shield size={20} className={cameraState.face_detected ? "text-red-400" : "text-teal-400"} />
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">Security Radar</span>
+          </div>
 
-          <div className="z-10 text-center">
+          <div className="flex flex-col items-center justify-center py-8">
             <motion.div 
-              animate={{ opacity: cameraState.face_detected ? 1 : 0.7 }}
-              className="text-8xl md:text-9xl font-extralight tracking-tighter text-white mb-2"
+              animate={{ scale: cameraState.face_detected ? [1, 1.05, 1] : 1 }}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="relative"
             >
-              {cameraState.distance.toFixed(1)}<span className="text-3xl">m</span>
-            </motion.div>
-            <div className="flex items-center justify-center gap-2">
-              <div className={`h-2 w-2 rounded-full ${cameraState.face_detected ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
-              <span className="text-xs font-black uppercase tracking-widest text-white/50">
-                {cameraState.face_detected ? 'Authorized Presence' : 'Secure Scanning'}
+              <span className="text-9xl font-light tracking-tighter text-white">
+                {cameraState.distance.toFixed(1)}<span className="text-2xl ml-1 opacity-30">m</span>
               </span>
-            </div>
+              {cameraState.face_detected && (
+                <div className="absolute -inset-10 bg-red-500/10 blur-[60px] -z-10 rounded-full animate-pulse"></div>
+              )}
+            </motion.div>
           </div>
 
-          <div className="absolute top-6 left-6 p-3 bg-white/5 rounded-2xl border border-white/10">
-            <Navigation size={24} className="text-white/70" />
-          </div>
-        </div>
-
-        {/* Lab Temp Card */}
-        <div className="apple-glass rounded-[32px] p-5 flex flex-col justify-between group">
-          <div className="flex justify-between items-start">
-            <Thermometer size={20} className="text-blue-400" />
-            <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">Live</span>
-          </div>
-          <div className="text-center py-4">
-            <span className="text-5xl font-bold text-white tracking-tight">24</span>
-            <span className="text-xl font-medium text-blue-400 ml-1">°C</span>
-          </div>
           <div className="flex justify-between items-end">
-            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Lab Temp</span>
-            <div className="w-12 h-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data}>
-                  <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/30 block mb-1">Current Zone</span>
+              <span className="text-xl font-bold text-white tracking-tight">{cameraState.zone}</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white/[0.05] px-4 py-2 rounded-2xl border border-white/[0.1]">
+              <Activity size={12} className="text-teal-400" />
+              <span className="text-[10px] font-bold text-teal-400 tracking-widest uppercase">Live Telemetry</span>
             </div>
           </div>
         </div>
 
-        {/* Humidity Card */}
-        <div className="apple-glass rounded-[32px] p-5 flex flex-col justify-between group">
+        {/* Card 2: AI Assistant (2x3) - Tall right side */}
+        <div className="md:col-span-2 md:row-span-3 premium-glass bg-purple-950/10 border-purple-500/10 flex flex-col p-0 overflow-hidden group">
+          <div className="p-6 border-b border-white/[0.05] flex justify-between items-center bg-white/[0.02]">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-purple-500/20 rounded-xl">
+                <Bot size={18} className="text-purple-400" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white">Ollama Intelligence</span>
+            </div>
+            <div className="flex gap-1.5">
+              <div className="h-1.5 w-1.5 rounded-full bg-purple-500/50"></div>
+              <div className="h-1.5 w-1.5 rounded-full bg-purple-500/50"></div>
+            </div>
+          </div>
+
+          {/* Chat Space */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide bg-gradient-to-b from-transparent to-purple-900/5">
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
+                  msg.role === 'user' 
+                    ? 'bg-purple-600 text-white rounded-tr-none' 
+                    : 'bg-white/[0.05] text-white/90 border border-white/[0.1] rounded-tl-none'
+                }`}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            {isAiLoading && (
+              <div className="flex justify-start">
+                <div className="bg-white/[0.05] p-4 rounded-2xl rounded-tl-none flex gap-1.5">
+                  <div className="h-1 w-1 bg-purple-400 rounded-full animate-bounce"></div>
+                  <div className="h-1 w-1 bg-purple-400 rounded-full animate-bounce delay-75"></div>
+                  <div className="h-1 w-1 bg-purple-400 rounded-full animate-bounce delay-150"></div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="p-6 bg-white/[0.02] border-t border-white/[0.05]">
+            <div className="relative">
+              <input 
+                type="text" 
+                value={aiInput}
+                onChange={e => setAiInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAiSend()}
+                placeholder="Send a command..."
+                className="w-full bg-white/[0.05] border border-white/[0.1] text-white rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+              />
+              <button 
+                onClick={handleAiSend}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-purple-400 hover:text-white transition-colors"
+              >
+                <Send size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Temperature (1x1) */}
+        <div className="md:col-span-1 md:row-span-1 premium-glass flex flex-col justify-between">
           <div className="flex justify-between items-start">
-            <Droplets size={20} className="text-cyan-400" />
-            <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">Live</span>
+            <Thermometer size={18} className="text-teal-400" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Lab Temp</span>
           </div>
-          <div className="text-center py-4">
-            <span className="text-5xl font-bold text-white tracking-tight">42</span>
-            <span className="text-xl font-medium text-cyan-400 ml-1">%</span>
+          <div className="flex items-center justify-center">
+            <span className="text-5xl font-light tracking-tight text-white">24<span className="text-xl ml-1 text-teal-400 font-medium">°C</span></span>
           </div>
-          <div className="flex justify-between items-end">
-            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Humidity</span>
-            <div className="w-12 h-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data}>
-                  <Line type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
+          <div className="h-10 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={sparkData}>
+                <Line type="monotone" dataKey="value" stroke="#2dd4bf" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Card 4: Humidity (1x1) */}
+        <div className="md:col-span-1 md:row-span-1 premium-glass flex flex-col justify-between">
+          <div className="flex justify-between items-start">
+            <Droplets size={18} className="text-blue-400" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Humidity</span>
+          </div>
+          <div className="flex items-center justify-center">
+            <span className="text-5xl font-light tracking-tight text-white">42<span className="text-xl ml-1 text-blue-400 font-medium">%</span></span>
+          </div>
+          <div className="h-10 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={sparkData}>
+                <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Card 5: Power Controls (2x1) */}
+        <div className="md:col-span-2 md:row-span-1 premium-glass flex flex-col justify-between">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Relay Controls</span>
+            <div className="flex gap-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-teal-500"></div>
+              <div className="h-1.5 w-1.5 rounded-full bg-white/10"></div>
             </div>
           </div>
-        </div>
+          
+          <div className="grid grid-cols-2 gap-4 flex-1">
+            <motion.button 
+              whileTap={{ scale: 0.96 }}
+              onClick={() => setLights(!lights)}
+              className={`flex items-center justify-between p-5 rounded-[24px] border transition-all duration-500 ${
+                lights ? 'bg-teal-500/20 border-teal-500/50' : 'bg-white/[0.05] border-white/[0.1]'
+              }`}
+            >
+              <div className="flex flex-col items-start">
+                <span className={`text-[9px] font-black uppercase tracking-widest mb-1 ${lights ? 'text-teal-400' : 'text-white/20'}`}>Main Relay</span>
+                <span className="text-base font-bold text-white tracking-tight">Main Lights</span>
+              </div>
+              <Lightbulb size={24} className={lights ? 'text-teal-400' : 'text-white/20'} />
+            </motion.button>
 
-        {/* Light Toggle */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setLightsOn(!lightsOn)}
-          className={`apple-glass rounded-[32px] p-5 flex flex-col justify-between text-left transition-colors duration-500 ${
-            lightsOn ? 'bg-amber-500/80 border-amber-400/50' : ''
-          }`}
-        >
-          <Lightbulb size={24} className={lightsOn ? "text-white" : "text-amber-500"} />
-          <div>
-            <span className={`block text-xs font-black uppercase tracking-widest mb-1 ${lightsOn ? 'text-white/70' : 'text-white/30'}`}>
-              Main Relay
-            </span>
-            <span className="text-xl font-bold text-white leading-tight">
-              {lightsOn ? 'Lights Active' : 'Lights Off'}
-            </span>
-          </div>
-        </motion.button>
-
-        {/* Fan Toggle */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setFanOn(!fanOn)}
-          className={`apple-glass rounded-[32px] p-5 flex flex-col justify-between text-left transition-colors duration-500 ${
-            fanOn ? 'bg-blue-500/80 border-blue-400/50' : ''
-          }`}
-        >
-          <Fan size={24} className={`${fanOn ? "text-white animate-spin" : "text-blue-500"}`} />
-          <div>
-            <span className={`block text-xs font-black uppercase tracking-widest mb-1 ${fanOn ? 'text-white/70' : 'text-white/30'}`}>
-              Exhaust
-            </span>
-            <span className="text-xl font-bold text-white leading-tight">
-              {fanOn ? 'Fan Running' : 'Fan Off'}
-            </span>
-          </div>
-        </motion.button>
-
-        {/* Power Usage (Small) */}
-        <div className="apple-glass rounded-[32px] p-5 flex items-center gap-4">
-          <div className="p-3 bg-white/10 rounded-2xl">
-            <Zap size={20} className="text-yellow-400" />
-          </div>
-          <div>
-            <span className="block text-[10px] font-black text-white/30 uppercase tracking-widest mb-0.5">Energy</span>
-            <span className="text-lg font-bold text-white">4.2<span className="text-xs ml-0.5 font-medium opacity-50">kW</span></span>
-          </div>
-        </div>
-
-        {/* Lock Status (Small) */}
-        <div className="apple-glass rounded-[32px] p-5 flex items-center gap-4">
-          <div className="p-3 bg-white/10 rounded-2xl">
-            <Lock size={20} className="text-emerald-400" />
-          </div>
-          <div>
-            <span className="block text-[10px] font-black text-white/30 uppercase tracking-widest mb-0.5">Entry</span>
-            <span className="text-lg font-bold text-white">Secure</span>
+            <motion.button 
+              whileTap={{ scale: 0.96 }}
+              className="flex items-center justify-between p-5 rounded-[24px] border bg-white/[0.02] border-white/[0.05] grayscale opacity-40 cursor-not-allowed"
+            >
+              <div className="flex flex-col items-start">
+                <span className="text-[9px] font-black uppercase tracking-widest mb-1 text-white/20">Aux Relay</span>
+                <span className="text-base font-bold text-white tracking-tight">Exhaust Fan</span>
+              </div>
+              <Zap size={24} className="text-white/20" />
+            </motion.button>
           </div>
         </div>
 
