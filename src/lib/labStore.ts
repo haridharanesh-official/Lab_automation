@@ -1,193 +1,163 @@
 import { create } from "zustand";
 
-export type DeviceKind = "light" | "fan" | "exhaust" | "power" | "buzzer";
-export type SensorKind = "temperature" | "humidity" | "gas" | "motion" | "light";
+export type EntityDomain = "sensor" | "switch" | "binary_sensor" | "climate" | "light" | "script";
+export type EntityState = string | number | boolean;
 
-export interface Device {
-  id: string;
-  roomId: string;
+export interface Entity {
+  entity_id: string; // domain.name
   name: string;
-  kind: DeviceKind;
-  on: boolean;
+  state: EntityState;
+  attributes: {
+    unit_of_measurement?: string;
+    device_class?: string;
+    icon?: string;
+    friendly_name?: string;
+    status?: "normal" | "warning" | "danger" | "critical";
+    last_changed?: string;
+    area_id?: string;
+    [key: string]: any;
+  };
 }
 
-export interface SensorReading {
-  id: string;
-  roomId: string;
-  name: string;
-  kind: SensorKind;
-  value: number;
-  unit: string;
-  status: "normal" | "warning" | "danger";
-}
-
-export interface Room {
+export interface Area {
   id: string;
   name: string;
-  code: string;
+  description?: string;
 }
 
 export interface Automation {
   id: string;
-  name: string;
-  trigger: string;
-  action: string;
+  alias: string;
+  description: string;
   enabled: boolean;
 }
 
-export interface Alert {
-  id: string;
-  ts: number;
-  roomId: string;
-  level: "info" | "warning" | "danger";
-  message: string;
-  acknowledged: boolean;
-}
-
-export interface LogEntry {
-  id: string;
-  ts: number;
-  source: string;
-  message: string;
-}
-
-interface LabState {
-  rooms: Room[];
-  devices: Device[];
-  sensors: SensorReading[];
+interface LabOSState {
+  // Connection Status
+  mqtt_connected: boolean;
+  rpi_status: "online" | "maintenance" | "offline";
+  ai_status: "ready" | "processing" | "idle";
+  
+  // Data
+  entities: Record<string, Entity>;
+  areas: Area[];
   automations: Automation[];
-  alerts: Alert[];
-  logs: LogEntry[];
-  toggleDevice: (id: string) => void;
-  toggleAutomation: (id: string) => void;
-  ackAlert: (id: string) => void;
-  tick: () => void;
-  triggerEmergency: (roomId: string) => void;
+  logs: { id: string; timestamp: string; message: string; type: "info" | "warning" | "danger" }[];
+  
+  // Actions
+  updateEntity: (entity_id: string, newState: Partial<Entity>) => void;
+  toggleSwitch: (entity_id: string) => void;
+  setMqttStatus: (connected: boolean) => void;
+  addLog: (message: string, type?: "info" | "warning" | "danger") => void;
 }
 
-const rooms: Room[] = [
-  { id: "r101", name: "Chemistry Lab", code: "Lab 101" },
-  { id: "r102", name: "Biology Lab", code: "Lab 102" },
-  { id: "r103", name: "Electronics Lab", code: "Lab 103" },
+// Initial Data Mock (Lovelace Style Entities)
+const initialAreas: Area[] = [
+  { id: "lab_101", name: "Chemistry Lab", description: "Analytical Chemistry Wing" },
+  { id: "lab_102", name: "Bio-Genetics", description: "Restricted Access Area" },
+  { id: "lab_103", name: "Robotics Core", description: "Mechatronics Development" },
 ];
 
-const initialDevices: Device[] = rooms.flatMap((r) => [
-  { id: `${r.id}-light`, roomId: r.id, name: "Ceiling Lights", kind: "light", on: true },
-  { id: `${r.id}-fan`, roomId: r.id, name: "Ceiling Fan", kind: "fan", on: false },
-  { id: `${r.id}-exhaust`, roomId: r.id, name: "Exhaust Fan", kind: "exhaust", on: false },
-  { id: `${r.id}-power`, roomId: r.id, name: "Main Power", kind: "power", on: true },
-  { id: `${r.id}-buzzer`, roomId: r.id, name: "Emergency Buzzer", kind: "buzzer", on: false },
-]);
+const initialEntities: Record<string, Entity> = {
+  // Lab 101 Sensors
+  "sensor.lab101_temp": {
+    entity_id: "sensor.lab101_temp",
+    name: "Lab 101 Temperature",
+    state: 24.2,
+    attributes: { unit_of_measurement: "°C", device_class: "temperature", area_id: "lab_101", status: "normal" }
+  },
+  "sensor.lab101_humidity": {
+    entity_id: "sensor.lab101_humidity",
+    name: "Lab 101 Humidity",
+    state: 45,
+    attributes: { unit_of_measurement: "%", device_class: "humidity", area_id: "lab_101", status: "normal" }
+  },
+  "sensor.lab101_gas": {
+    entity_id: "sensor.lab101_gas",
+    name: "Lab 101 Gas Level",
+    state: 120,
+    attributes: { unit_of_measurement: "ppm", device_class: "gas", area_id: "lab_101", status: "normal" }
+  },
+  "binary_sensor.lab101_motion": {
+    entity_id: "binary_sensor.lab101_motion",
+    name: "Lab 101 Presence",
+    state: false,
+    attributes: { device_class: "motion", area_id: "lab_101" }
+  },
+  // Lab 101 Switches
+  "switch.lab101_main_light": {
+    entity_id: "switch.lab101_main_light",
+    name: "Lab 101 Main Lighting",
+    state: true,
+    attributes: { icon: "lightbulb", area_id: "lab_101" }
+  },
+  "switch.lab101_exhaust": {
+    entity_id: "switch.lab101_exhaust",
+    name: "Lab 101 Ventilation",
+    state: false,
+    attributes: { icon: "fan", area_id: "lab_101" }
+  },
+  "switch.lab101_power": {
+    entity_id: "switch.lab101_power",
+    name: "Lab 101 Main Power",
+    state: true,
+    attributes: { icon: "zap", area_id: "lab_101" }
+  },
+  
+  // System Metrics
+  "sensor.system_energy": {
+    entity_id: "sensor.system_energy",
+    name: "Total Energy Consumption",
+    state: 12.8,
+    attributes: { unit_of_measurement: "kWh", icon: "flash" }
+  },
+  "sensor.occupancy_count": {
+    entity_id: "sensor.occupancy_count",
+    name: "Current Occupancy",
+    state: 4,
+    attributes: { icon: "account-group" }
+  }
+};
 
-const initialSensors: SensorReading[] = rooms.flatMap((r) => [
-  { id: `${r.id}-temp`, roomId: r.id, name: "Temperature", kind: "temperature", value: 24, unit: "°C", status: "normal" },
-  { id: `${r.id}-hum`, roomId: r.id, name: "Humidity", kind: "humidity", value: 48, unit: "%", status: "normal" },
-  { id: `${r.id}-gas`, roomId: r.id, name: "Gas (MQ2)", kind: "gas", value: 120, unit: "ppm", status: "normal" },
-  { id: `${r.id}-pir`, roomId: r.id, name: "Motion", kind: "motion", value: 0, unit: "", status: "normal" },
-  { id: `${r.id}-ldr`, roomId: r.id, name: "Ambient Light", kind: "light", value: 420, unit: "lx", status: "normal" },
-]);
+export const useLabStore = create<LabOSState>((set) => ({
+  mqtt_connected: true,
+  rpi_status: "online",
+  ai_status: "ready",
+  
+  entities: initialEntities,
+  areas: initialAreas,
+  automations: [
+    { id: "auto_1", alias: "Gas Leak Emergency", description: "Shutdown power and start exhaust on high gas", enabled: true },
+    { id: "auto_2", alias: "After Hours Power Off", description: "Power down non-essential systems at 22:00", enabled: true },
+  ],
+  logs: [],
 
-const automations: Automation[] = [
-  { id: "a1", name: "Gas Leak Emergency", trigger: "Gas > 600 ppm", action: "Exhaust ON · Power OFF · Buzzer ON", enabled: true },
-  { id: "a2", name: "Auto Lights at Dusk", trigger: "Ambient < 200 lx", action: "Lights ON", enabled: true },
-  { id: "a3", name: "Temperature Cooling", trigger: "Temp > 30 °C", action: "Fan ON", enabled: true },
-  { id: "a4", name: "Motion Auto-Off", trigger: "No motion 10 min", action: "Lights OFF", enabled: false },
-  { id: "a5", name: "After-Hours Lockdown", trigger: "Time > 22:00", action: "Power OFF · Lights OFF", enabled: true },
-];
+  updateEntity: (entity_id, newState) => set((state) => ({
+    entities: {
+      ...state.entities,
+      [entity_id]: { ...state.entities[entity_id], ...newState }
+    }
+  })),
 
-const initialAlerts: Alert[] = [
-  { id: "al1", ts: Date.now() - 1000 * 60 * 12, roomId: "r102", level: "warning", message: "Humidity above 65% threshold", acknowledged: false },
-  { id: "al2", ts: Date.now() - 1000 * 60 * 90, roomId: "r101", level: "info", message: "Motion detected after-hours", acknowledged: true },
-];
+  toggleSwitch: (entity_id) => set((state) => {
+    const entity = state.entities[entity_id];
+    if (!entity || !entity_id.startsWith("switch.")) return state;
+    return {
+      entities: {
+        ...state.entities,
+        [entity_id]: { ...entity, state: !entity.state }
+      }
+    };
+  }),
 
-const initialLogs: LogEntry[] = [
-  { id: "l1", ts: Date.now() - 1000 * 60 * 2, source: "lab/r101/light", message: "Ceiling Lights turned ON" },
-  { id: "l2", ts: Date.now() - 1000 * 60 * 5, source: "lab/r103/sensor/temp", message: "Temperature reading 25.3 °C" },
-  { id: "l3", ts: Date.now() - 1000 * 60 * 8, source: "automation/a3", message: "Triggered: Temperature Cooling" },
-  { id: "l4", ts: Date.now() - 1000 * 60 * 14, source: "lab/r102/sensor/gas", message: "Gas reading 130 ppm" },
-];
+  setMqttStatus: (connected) => set({ mqtt_connected: connected }),
 
-const uid = () => Math.random().toString(36).slice(2, 9);
-
-function classifySensor(s: SensorReading): SensorReading["status"] {
-  if (s.kind === "gas") return s.value > 600 ? "danger" : s.value > 350 ? "warning" : "normal";
-  if (s.kind === "temperature") return s.value > 32 ? "danger" : s.value > 28 ? "warning" : "normal";
-  if (s.kind === "humidity") return s.value > 70 ? "warning" : "normal";
-  return "normal";
-}
-
-export const useLabStore = create<LabState>((set, get) => ({
-  rooms,
-  devices: initialDevices,
-  sensors: initialSensors,
-  automations,
-  alerts: initialAlerts,
-  logs: initialLogs,
-  toggleDevice: (id) =>
-    set((state) => {
-      const dev = state.devices.find((d) => d.id === id);
-      if (!dev) return state;
-      const updated = state.devices.map((d) => (d.id === id ? { ...d, on: !d.on } : d));
-      const log: LogEntry = {
-        id: uid(),
-        ts: Date.now(),
-        source: `lab/${dev.roomId}/${dev.kind}`,
-        message: `${dev.name} turned ${!dev.on ? "ON" : "OFF"}`,
-      };
-      return { devices: updated, logs: [log, ...state.logs].slice(0, 200) };
-    }),
-  toggleAutomation: (id) =>
-    set((state) => ({
-      automations: state.automations.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)),
-    })),
-  ackAlert: (id) =>
-    set((state) => ({ alerts: state.alerts.map((a) => (a.id === id ? { ...a, acknowledged: true } : a)) })),
-  tick: () =>
-    set((state) => {
-      const sensors = state.sensors.map((s) => {
-        let v = s.value;
-        if (s.kind === "temperature") v = +(v + (Math.random() - 0.5) * 0.4).toFixed(1);
-        else if (s.kind === "humidity") v = +(v + (Math.random() - 0.5) * 1.2).toFixed(0);
-        else if (s.kind === "gas") v = Math.max(80, Math.round(v + (Math.random() - 0.5) * 30));
-        else if (s.kind === "motion") v = Math.random() > 0.85 ? 1 : 0;
-        else if (s.kind === "light") v = Math.max(50, Math.round(v + (Math.random() - 0.5) * 40));
-        const next = { ...s, value: v };
-        next.status = classifySensor(next);
-        return next;
-      });
-      return { sensors };
-    }),
-  triggerEmergency: (roomId) =>
-    set((state) => {
-      const devices = state.devices.map((d) => {
-        if (d.roomId !== roomId) return d;
-        if (d.kind === "exhaust" || d.kind === "buzzer") return { ...d, on: true };
-        if (d.kind === "power") return { ...d, on: false };
-        return d;
-      });
-      const sensors = state.sensors.map((s) =>
-        s.roomId === roomId && s.kind === "gas" ? { ...s, value: 720, status: "danger" as const } : s,
-      );
-      const room = state.rooms.find((r) => r.id === roomId);
-      const alert: Alert = {
-        id: uid(),
-        ts: Date.now(),
-        roomId,
-        level: "danger",
-        message: `Gas leak detected in ${room?.code} — emergency protocol engaged`,
-        acknowledged: false,
-      };
-      const log: LogEntry = {
-        id: uid(),
-        ts: Date.now(),
-        source: `automation/a1`,
-        message: `Triggered: Gas Leak Emergency in ${room?.code}`,
-      };
-      return {
-        devices,
-        sensors,
-        alerts: [alert, ...state.alerts],
-        logs: [log, ...state.logs].slice(0, 200),
-      };
-    }),
+  addLog: (message, type = "info") => set((state) => ({
+    logs: [{
+      id: Math.random().toString(36).slice(2),
+      timestamp: new Date().toISOString(),
+      message,
+      type
+    }, ...state.logs].slice(0, 100)
+  })),
 }));
