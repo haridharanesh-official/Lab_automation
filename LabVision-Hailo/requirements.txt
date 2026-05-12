@@ -1,0 +1,15 @@
+# LabVision-Hailo Requirements (Pi 5 + Hailo-8)
+# Use 'pip install -r requirements.txt' on the Raspberry Pi
+
+# Core Dependencies
+numpy>=1.23.5
+opencv-python-headless  # Headless is better for background services
+paho-mqtt>=1.6.1
+
+# Hailo specific (These are usually installed via apt/hailo-provided wheels)
+# hailort
+# hailo-model-zoo
+
+# Utils
+python-json-logger
+PyYAML
