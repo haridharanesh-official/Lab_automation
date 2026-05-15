@@ -12,7 +12,13 @@ class MQTTManager:
     def __init__(self, broker="localhost", port=1883, client_id="LabVision_Hailo"):
         self.broker = broker
         self.port = port
-        self.client = mqtt.Client(client_id)
+        
+        # Paho MQTT 2.0 Compatibility
+        try:
+            from paho.mqtt.enums import CallbackAPIVersion
+            self.client = mqtt.Client(CallbackAPIVersion.VERSION2, client_id=client_id)
+        except (ImportError, AttributeError):
+            self.client = mqtt.Client(client_id)
         
         # Callbacks for fusion engine
         self.on_pir_update = None
