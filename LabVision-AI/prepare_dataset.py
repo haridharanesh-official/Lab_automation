@@ -24,6 +24,35 @@ def prepare_dataset():
     
     for sub in sub_dirs:
         os.makedirs(os.path.join(base_dataset_dir, sub), exist_ok=True)
+
+    # 1. Merge manual calibration labels into the dataset automatically
+    manual_dir = os.path.join(SCRIPT_DIR, 'manual_calibration')
+    if os.path.exists(manual_dir):
+        manual_txt_files = [f for f in os.listdir(manual_dir) if f.endswith('.txt')]
+        print(f"Found {len(manual_txt_files)} manual annotations in {manual_dir}")
+        for txt_file in manual_txt_files:
+            # Source paths
+            src_txt = os.path.join(manual_dir, txt_file)
+            
+            # Find corresponding image
+            base_name = txt_file.rsplit('.', 1)[0]
+            img_file = None
+            for ext in ['.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG']:
+                if os.path.exists(os.path.join(manual_dir, base_name + ext)):
+                    img_file = base_name + ext
+                    break
+            
+            if img_file:
+                src_img = os.path.join(manual_dir, img_file)
+                # Copy directly to dataset_raw (overriding auto-labels)
+                dest_txt = os.path.join(raw_img_dir, txt_file)
+                shutil.copy2(src_txt, dest_txt)
+                
+                # Copy image to dataset_raw
+                dest_img = os.path.join(raw_img_dir, img_file)
+                shutil.copy2(src_img, dest_img)
+        print(f"Successfully integrated manual annotations into raw datasets.")
+
             
     # Get all images that have labels, SORTED CHRONOLOGICALLY
     images = sorted([f for f in os.listdir(raw_img_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
@@ -31,7 +60,7 @@ def prepare_dataset():
     
     for img_name in images:
         label_name = img_name.rsplit('.', 1)[0] + '.txt'
-        if os.path.exists(os.path.join(label_dir, label_name)):
+        if os.path.exists(os.path.join(raw_img_dir, label_name)):
             valid_data.append(img_name)
             
     if not valid_data:
@@ -50,12 +79,12 @@ def prepare_dataset():
         for img_name in tqdm(file_list, desc=desc):
             label_name = img_name.rsplit('.', 1)[0] + '.txt'
             shutil.copy2(os.path.join(raw_img_dir, img_name), os.path.join(target_img_dir, img_name))
-            shutil.copy2(os.path.join(label_dir, label_name), os.path.join(target_label_dir, label_name))
+            shutil.copy2(os.path.join(raw_img_dir, label_name), os.path.join(target_label_dir, label_name))
 
     copy_set(train_files, train_img_dir, train_label_dir, "Copying Training Set")
     copy_set(val_files, val_img_dir, val_label_dir, "Copying Validation Set")
     
-    yaml_content = f"path: {base_dataset_dir}\ntrain: images/train\nval: images/val\n\nnc: 1\nnames: ['person']\n"
+    yaml_content = f"path: {base_dataset_dir}\ntrain: images/train\nval: images/val\n\nc: 1\nnames: ['person']\n"
     with open(os.path.join(SCRIPT_DIR, 'data.yaml'), 'w') as f:
         f.write(yaml_content)
     print(f"Generated data.yaml at {os.path.join(SCRIPT_DIR, 'data.yaml')}")

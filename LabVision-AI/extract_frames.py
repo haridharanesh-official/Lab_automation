@@ -41,11 +41,16 @@ def extract_frames(video_path, output_dir, interval=60):
     print(f"\nSuccessfully extracted {saved_count} frames into {output_dir}")
 
 if __name__ == "__main__":
-    # Target directory for extraction
+    # Default target directory
     output_dir = "dataset_raw"
     
     if len(sys.argv) > 1:
         target = sys.argv[1]
+        
+        # If second argument is provided, use it as output directory
+        if len(sys.argv) > 2:
+            output_dir = sys.argv[2]
+            
         if os.path.isdir(target):
             print(f"Processing all videos in directory: {target}")
             videos = [f for f in os.listdir(target) if f.lower().endswith(('.mp4', '.avi', '.mov'))]
@@ -54,4 +59,4 @@ if __name__ == "__main__":
         else:
             extract_frames(target, output_dir, interval=150)
     else:
-        print("Usage: python extract_frames.py <path_to_video_or_directory>")
+        print("Usage: python extract_frames.py <path_to_video_or_directory> [output_directory]")

@@ -8,6 +8,7 @@ from occupancy_engine import OccupancyEngine
 from mqtt_manager import MQTTManager
 
 import numpy as np
+import json
 # Import Hailo only if available
 try:
     from hailo_platform import HEF, Device, VDevice, InferVStreams, ConfigureVStreams, InputVStreamParams, OutputVStreamParams, FormatType # type: ignore
@@ -115,8 +116,8 @@ class HailoApp:
         while self.running:
             try:
                 frame = self.frame_queue.get(timeout=1)
-                # Mock logic: detect anything as 'true' for now
-                self.fusion.update_sensor("ai", True)
+                # Mock logic: detect 1 person for testing
+                self.engine.update(1)
                 time.sleep(0.03) # Simulate 30 FPS
             except queue.Empty:
                 continue

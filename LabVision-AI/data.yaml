@@ -1,6 +1,6 @@
-path: D:\SIET\IOT Lab\Lab automation\LabVision-AI\dataset
+path: C:\Users\prith\Downloads\Lab automation\LabVision-AI\dataset
 train: images/train
 val: images/val
 
-nc: 1
+c: 1
 names: ['person']

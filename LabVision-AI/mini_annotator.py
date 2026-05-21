@@ -8,8 +8,34 @@ def mini_annotate():
         print("Error: manual_calibration folder not found.")
         return
 
+    import argparse
+    parser = argparse.ArgumentParser(description="Interactive Mini-Annotator")
+    parser.add_argument('--filter', type=str, default=None, help="Filter images by filename substring (e.g. 'back cam')")
+    parser.add_argument('--limit', type=int, default=None, help="Limit the number of images to annotate")
+    parser.add_argument('--unlabeled-only', action='store_true', help="Only show images without existing annotations")
+    parser.add_argument('--labeled-only', action='store_true', help="Only show images with existing annotations")
+    args, unknown = parser.parse_known_args()
+
     frames = [f for f in os.listdir(calib_dir) if f.endswith('.jpg')]
     
+    if args.filter:
+        frames = [f for f in frames if args.filter.lower() in f.lower()]
+        print(f"🔍 Filtered to {len(frames)} images matching '{args.filter}'")
+        
+    if args.unlabeled_only:
+        frames = [f for f in frames if not os.path.exists(os.path.join(calib_dir, f.replace('.jpg', '.txt')))]
+        print(f"🔍 Filtered to {len(frames)} unlabeled images")
+
+    if args.labeled_only:
+        frames = [f for f in frames if os.path.exists(os.path.join(calib_dir, f.replace('.jpg', '.txt')))]
+        print(f"🔍 Filtered to {len(frames)} labeled images")
+        
+    if args.limit and len(frames) > args.limit:
+        # Spaced out sampling across the entire timeline to maximize training diversity
+        indices = np.linspace(0, len(frames) - 1, args.limit, dtype=int)
+        frames = [frames[i] for i in indices]
+        print(f"📊 Spaced out sampling: Selected {len(frames)} key representative frames for calibration.")
+
     # Target display size
     MAX_W, MAX_H = 1280, 720
 

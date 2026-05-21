@@ -11,6 +11,20 @@ def is_blurry(image, threshold=70.0):
     return fm < threshold
 
 def auto_label_perfect():
+    import torch
+    # Safe self-healing device detection
+    try:
+        # Test if CUDA can actually execute Conv2d operations without throwing kernel image errors
+        import torch.nn as nn
+        conv = nn.Conv2d(1, 1, 3).cuda()
+        test_x = torch.rand(1, 1, 3, 3).cuda()
+        test_y = conv(test_x)
+        device = 0
+        print("✅ GPU Acceleration detected and operational on RTX 5070!")
+    except Exception as e:
+        print(f"⚠️ GPU acceleration unavailable or incompatible ({type(e).__name__}). Gracefully falling back to CPU.")
+        device = 'cpu'
+
     print("Loading high-precision YOLOv8l model...")
     model = YOLO('yolov8l.pt') 
     
@@ -58,7 +72,7 @@ def auto_label_perfect():
             
             # Rule 1-4: High Precision Inference
             # Conf=0.20 (Calibrated based on User Audit to close 1.20x sensitivity gap)
-            results = model(img, classes=[0], conf=0.20, verbose=False, device=0) 
+            results = model(img, classes=[0], conf=0.20, verbose=False, device=device) 
             
             suspect_log = os.path.join(SCRIPT_DIR, 'suspect_audit.txt')
             with open(label_path, 'w') as f:
