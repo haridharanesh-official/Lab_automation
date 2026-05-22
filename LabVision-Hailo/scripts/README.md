@@ -36,6 +36,8 @@ It must never publish relay topics. Relay decisions stay in the existing LabOS c
 
 - `install_ai_hat_plus.sh`: installs Raspberry Pi AI HAT+ dependencies.
 - `verify_ai_hat_plus.sh`: checks whether the Hailo device and camera stack are visible.
+- `run_runtime_self_test.sh`: runs the LabVision-Hailo offline safety self-test.
+- `run_mock_vision_publish.sh`: publishes a mock people count to verify MQTT vision topics.
 - `labos-backcam-hailo.service.example`: future systemd service template after the Hailo runtime script exists.
 - `labos_hailo_env.example`: environment variables for the future runtime.
 - `copy_hailo_artifacts_to_pi.ps1`: Windows-side helper to copy ONNX/calibration files to a Linux compile/Pi target with `scp`.

@@ -68,6 +68,13 @@ After reboot:
 ```bash
 cd ~/LabVision-Hailo/scripts
 ./verify_ai_hat_plus.sh
+./run_runtime_self_test.sh
+```
+
+For the complete upload and bring-up sequence, use:
+
+```text
+docs/tomorrow_upload_runbook.md
 ```
 
 ## Current Status
@@ -80,6 +87,7 @@ The active runtime folder is intentionally small:
 
 ```text
 src/
+  hailo_backcam_runtime.py
   safe_mqtt.py
   README.md
 ```
