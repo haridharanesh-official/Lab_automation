@@ -1,0 +1,17 @@
+[Unit]
+Description=LabOS Back-Camera Hailo People Counter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/labos_hailo
+EnvironmentFile=/home/pi/labos_hailo/labos_hailo.env
+ExecStart=/home/pi/labos_hailo/.venv/bin/python /home/pi/labos_hailo/hailo_backcam_mqtt.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
