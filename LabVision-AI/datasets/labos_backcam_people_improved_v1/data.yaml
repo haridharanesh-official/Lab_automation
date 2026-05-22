@@ -1,0 +1,6 @@
+﻿path: C:/Users/prith/Downloads/Lab automation/LabVision-AI/datasets/labos_backcam_people_improved_v1
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: person

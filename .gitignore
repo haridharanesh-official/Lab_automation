@@ -21,6 +21,12 @@ dist-ssr
 *.ntvs*
 *.njsproj
 *.sln
+
+# Python/local environment
+.venv/
+__pycache__/
+*.pyc
+
 # AI & Dataset
 LabVision-AI/dataset/
 LabVision-AI/extracted_frames/
@@ -36,6 +42,36 @@ runs/
 runs_backup/
 dataset_raw/
 
+# Backcam generated media/caches
+LabVision-AI/datasets/**/images*/
+LabVision-AI/datasets/**/images/**
+LabVision-AI/datasets/**/extracted_frames/
+LabVision-AI/datasets/**/teacher_review/
+LabVision-AI/datasets/**/review_overlay/
+LabVision-AI/datasets/**/review_overlay_lowconf_hints/
+LabVision-AI/datasets/**/raw_videos/
+LabVision-AI/datasets/**/hard_negatives/
+LabVision-AI/datasets/**/images_raw/
+LabVision-AI/datasets/**/*.cache
+
+# Keep backcam labels/configs/reports trackable
+!LabVision-AI/datasets/
+!LabVision-AI/datasets/**/
+!LabVision-AI/datasets/**/labels*/
+!LabVision-AI/datasets/**/*.txt
+!LabVision-AI/datasets/**/*.yaml
+!LabVision-AI/datasets/**/*.csv
+
+# Allow the selected backcam v1 model artifact
+!LabVision-AI/runs/
+!LabVision-AI/runs/detect/
+!LabVision-AI/runs/detect/runs/
+!LabVision-AI/runs/detect/runs/labos/
+!LabVision-AI/runs/detect/runs/labos/backcam_yolov8s_improved_v1/
+!LabVision-AI/runs/detect/runs/labos/backcam_yolov8s_improved_v1/weights/
+!LabVision-AI/runs/detect/runs/labos/backcam_yolov8s_improved_v1/weights/best.pt
+!LabVision-AI/runs/detect/runs/labos/backcam_yolov8s_improved_v1/results.csv
+
 # Large Files
 *.zip
 *.mp4
@@ -48,4 +84,5 @@ dataset_raw/
 *.pt
 !yolov8s_final.pt
 !LabVision-AI/yolov8s_final.pt
+!LabVision-AI/runs/detect/runs/labos/backcam_yolov8s_improved_v1/weights/best.pt
 !*.hef

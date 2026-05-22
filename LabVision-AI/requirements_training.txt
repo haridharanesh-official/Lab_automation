@@ -1,0 +1,7 @@
+ultralytics>=8.4.51
+opencv-python>=4.8.0
+tqdm
+torch>=2.1.0
+torchvision
+numpy
+paho-mqtt>=2.0.0
