@@ -43,6 +43,7 @@ runs_backup/
 dataset_raw/
 
 # Backcam generated media/caches
+LabVision-AI/exports/
 LabVision-AI/datasets/**/images*/
 LabVision-AI/datasets/**/images/**
 LabVision-AI/datasets/**/extracted_frames/
@@ -72,6 +73,13 @@ LabVision-AI/datasets/**/*.cache
 !LabVision-AI/runs/detect/runs/labos/backcam_yolov8s_improved_v1/weights/best.pt
 !LabVision-AI/runs/detect/runs/labos/backcam_yolov8s_improved_v1/results.csv
 
+# Hailo deployment generated/local artifacts
+LabVision-Hailo/calibration/**/images/
+LabVision-Hailo/models/hef/*.hef
+LabVision-Hailo/logs/
+LabVision-Hailo/**/*.pyc
+LabVision-Hailo/**/__pycache__/
+
 # Large Files
 *.zip
 *.mp4
@@ -82,7 +90,8 @@ LabVision-AI/datasets/**/*.cache
 
 # Models (Keep final weights if desired, ignore others)
 *.pt
+*.onnx
 !yolov8s_final.pt
 !LabVision-AI/yolov8s_final.pt
 !LabVision-AI/runs/detect/runs/labos/backcam_yolov8s_improved_v1/weights/best.pt
-!*.hef
+!LabVision-Hailo/models/onnx/backcam_yolov8s_improved_v1_960.onnx

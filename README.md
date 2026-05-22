@@ -40,6 +40,7 @@ Use this folder for model work:
 Important files:
 
 - `production_inference_mqtt.py`: safe AI MQTT publisher for people count/status only.
+- `labos_stability_controller.py`: separate dry-run capable relay decision controller.
 - `extract_backcam_frames.py`: back-camera frame extraction.
 - `prepare_backcam_dataset.py`: dataset split preparation.
 - `evaluate_backcam_labos.py`: LabOS-specific evaluation.
@@ -122,4 +123,3 @@ The Hailo `.hef` is still pending and must be compiled with the Hailo Linux tool
 - Do not run legacy `mqtt_bridge.py` or old `occupancy_engine.py` as production automation without patch review.
 - Keep Home Assistant as dashboard/manual visibility unless automation changes are explicitly approved.
 - Keep ESP32 relay firmware changes separate and reviewed before flashing.
-

@@ -4,4 +4,6 @@ tqdm
 torch
 torchvision
 torchaudio
+paho-mqtt
+numpy
 --extra-index-url https://download.pytorch.org/whl/cu118
