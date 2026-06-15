@@ -1,0 +1,420 @@
+[
+  {
+    "id": "tab_labos_complete",
+    "type": "tab",
+    "label": "LabOS Complete AI to Relay Automation",
+    "disabled": false,
+    "info": "Complete production flow: vision input, no-flicker occupancy stages, five-minute empty shutdown, ESP health monitoring, retained relay commands, and manual/auto control."
+  },
+  {
+    "id": "broker_labos",
+    "type": "mqtt-broker",
+    "name": "LabOS Mosquitto",
+    "broker": "labos",
+    "port": "1883",
+    "clientid": "nodered_labos_automation",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "lab/automation/status",
+    "birthQos": "0",
+    "birthPayload": "online",
+    "birthMsg": {},
+    "closeTopic": "lab/automation/status",
+    "closeQos": "0",
+    "closePayload": "offline",
+    "closeMsg": {},
+    "willTopic": "lab/automation/status",
+    "willQos": "0",
+    "willPayload": "offline",
+    "willMsg": {}
+  },
+  {
+    "id": "in_vision",
+    "type": "mqtt in",
+    "z": "tab_labos_complete",
+    "name": "AI People Detection",
+    "topic": "lab/vision/#",
+    "qos": "0",
+    "datatype": "auto-detect",
+    "broker": "broker_labos",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 190,
+    "y": 80,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "in_people",
+    "type": "mqtt in",
+    "z": "tab_labos_complete",
+    "name": "AI People Detection Alternate",
+    "topic": "lab/people/#",
+    "qos": "0",
+    "datatype": "auto-detect",
+    "broker": "broker_labos",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 190,
+    "y": 120,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "in_occupancy",
+    "type": "mqtt in",
+    "z": "tab_labos_complete",
+    "name": "AI Occupancy JSON",
+    "topic": "lab/lab101/occupancy/#",
+    "qos": "0",
+    "datatype": "auto-detect",
+    "broker": "broker_labos",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 190,
+    "y": 160,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "in_relay_status",
+    "type": "mqtt in",
+    "z": "tab_labos_complete",
+    "name": "ESP Relay Status",
+    "topic": "lab/control/status",
+    "qos": "0",
+    "datatype": "auto-detect",
+    "broker": "broker_labos",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 190,
+    "y": 220,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "in_relay_states",
+    "type": "mqtt in",
+    "z": "tab_labos_complete",
+    "name": "ESP Relay State Feedback",
+    "topic": "lab/control/+/state",
+    "qos": "0",
+    "datatype": "auto-detect",
+    "broker": "broker_labos",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 190,
+    "y": 260,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "in_mode",
+    "type": "mqtt in",
+    "z": "tab_labos_complete",
+    "name": "AUTO / MANUAL Mode",
+    "topic": "lab/automation/mode",
+    "qos": "0",
+    "datatype": "auto-detect",
+    "broker": "broker_labos",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 190,
+    "y": 320,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "fn_complete",
+    "type": "function",
+    "z": "tab_labos_complete",
+    "name": "Complete No-Flicker AI → Relay Controller",
+    "func": "/* LabOS complete production automation\n\nBroker: labos:1883\nVision inputs: lab/vision/#, lab/people/#, lab/lab101/occupancy/#\nESP inputs: lab/control/status and lab/control/relay+/state\nControl: lab/automation/mode = auto | manual\n\nRules:\n  1 person   -> both lights\n  2-3 people -> both lights + Fan 1 + Fan 4\n  4+ people  -> both lights + all fans\n  0 people continuously for 5 minutes -> everything OFF\n\nInvalid/stale/lost vision data preserves the previous relay state.\nRelay commands are retained. Three matching readings prevent flicker.\n*/\nconst STABLE_READINGS=3, EMPTY_DELAY_MS=300000, VISION_STALE_MS=30000, MIN_CHANGE_MS=8000;\nconst topics={spare1:'lab/control/relay1/set',light2:'lab/control/relay2/set',fan1:'lab/control/relay3/set',fan3:'lab/control/relay4/set',spare5:'lab/control/relay5/set',fan4:'lab/control/relay6/set',light1:'lab/control/relay7/set',fan2:'lab/control/relay8/set'};\nconst stateTopics={1:'spare1',2:'light2',3:'fan1',4:'fan3',5:'spare5',6:'fan4',7:'light1',8:'fan2'};\nfunction pub(topic,payload,retain=true){return {topic,payload:String(payload),retain};}\nfunction emit(items){if(items.length) node.send([items]);}\nfunction states(mode){let s={spare1:'OFF',light2:'OFF',fan1:'OFF',fan3:'OFF',spare5:'OFF',fan4:'OFF',light1:'OFF',fan2:'OFF'};if(mode==='ONE'){s.light1='ON';s.light2='ON';}else if(mode==='TWO_THREE'){s.light1='ON';s.light2='ON';s.fan1='ON';s.fan4='ON';}else if(mode==='FOUR_PLUS'){s.light1='ON';s.light2='ON';s.fan1='ON';s.fan2='ON';s.fan3='ON';s.fan4='ON';}return s;}\nfunction modeFor(n){return n<=0?'EMPTY':n===1?'ONE':n<4?'TWO_THREE':'FOUR_PLUS';}\nfunction apply(mode,count,reason){const desired=states(mode),out=[];for(const [d,t] of Object.entries(topics))out.push(pub(t,desired[d]));out.push(pub('lab/automation/active_stage',mode));out.push(pub('lab/automation/people_count',count));out.push(pub('lab/automation/last_action',reason));context.set('desired',desired);context.set('activeStage',mode);context.set('lastApply',Date.now());context.set('pendingStage','');context.set('stable',0);emit(out);node.status({fill:mode==='EMPTY'?'red':'green',shape:'dot',text:mode+' count='+count});}\nfunction parseCount(payload){if(Buffer.isBuffer(payload))payload=payload.toString();if(typeof payload==='number')return Number.isFinite(payload)?payload:null;let x=String(payload??'').trim();if(!x)return null;if(x.startsWith('{')){try{const o=JSON.parse(x);for(const k of ['people_count','person_count','count','persons','occupancy','stable_count'])if(o[k]!==undefined&&Number.isFinite(Number(o[k])))return Number(o[k]);return null;}catch(e){return null;}}const n=Number(x);return Number.isFinite(n)?n:null;}\nfunction isVision(t){return t.startsWith('lab/vision/')||t.startsWith('lab/people/')||t.startsWith('lab/lab101/occupancy/');}\nconst t=String(msg.topic||''), now=Date.now();let out=[];\nif(t==='lab/automation/mode'){const m=String(msg.payload).toLowerCase();if(m==='auto'||m==='manual'){context.set('automationMode',m);out.push(pub('lab/automation/mode_state',m));out.push(pub('lab/automation/last_action','Mode changed to '+m));emit(out);node.status({fill:m==='auto'?'green':'blue',shape:'ring',text:m+' mode'});}return null;}\nif(t==='lab/control/status'){const status=String(msg.payload).toLowerCase();context.set('relayOnline',status==='online');emit([pub('lab/automation/relay_health',status)]);return null;}\nconst sm=t.match(/^lab\\/control\\/relay(\\d+)\\/state$/);if(sm){const relay=Number(sm[1]),actual=String(msg.payload).toUpperCase(),actuals=context.get('actual')||{};actuals[relay]=actual;context.set('actual',actuals);const desired=context.get('desired'),device=stateTopics[relay];if(desired&&device&&desired[device]!==actual){out.push(pub('lab/automation/warning','Relay '+relay+' mismatch: expected '+desired[device]+' got '+actual));}emit(out);return null;}\nif(t==='lab/automation/tick'){const last=context.get('lastVision')||0,age=last?Math.floor((now-last)/1000):-1,health=last&&now-last<=VISION_STALE_MS?'healthy':'stale';out.push(pub('lab/automation/vision_health',health));out.push(pub('lab/automation/vision_age_seconds',age));out.push(pub('lab/automation/relay_health',context.get('relayOnline')?'online':'offline'));if(health==='stale')out.push(pub('lab/automation/warning','Vision stale; previous relay state preserved'));emit(out);return null;}\nif(!isVision(t))return null;\n// Vision status messages are health-only and never interpreted as a count.\nif(t.endsWith('/status')||t.endsWith('/source_status')){const h=String(msg.payload).toLowerCase();emit([pub('lab/automation/vision_health',(h.includes('online')||h.includes('healthy'))?'healthy':'unhealthy')]);return null;}\nconst countRaw=parseCount(msg.payload);if(countRaw===null||Number.isNaN(countRaw)){emit([pub('lab/automation/warning','Invalid vision payload ignored; previous relay state preserved')]);return null;}\nconst count=Math.max(0,Math.floor(countRaw));context.set('lastVision',now);out.push(pub('lab/vision/people_count/state',count));out.push(pub('lab/automation/vision_health','healthy'));emit(out);\nif((context.get('automationMode')||'manual')!=='auto'){node.status({fill:'blue',shape:'ring',text:'manual; count='+count});return null;}\nlet emptyTimer=context.get('emptyTimer');if(count>0&&emptyTimer){clearTimeout(emptyTimer);context.set('emptyTimer',null);emptyTimer=null;}\nconst target=modeFor(count),active=context.get('activeStage')||'UNKNOWN';if(target===active){context.set('pendingStage','');context.set('stable',0);return null;}\nlet pending=context.get('pendingStage')||'',stable=context.get('stable')||0;if(target===pending)stable++;else{pending=target;stable=1;}context.set('pendingStage',pending);context.set('stable',stable);if(stable<STABLE_READINGS){node.status({fill:'yellow',shape:'ring',text:'checking '+target+' '+stable+'/'+STABLE_READINGS});return null;}\nif(target==='EMPTY'){if(!emptyTimer){const source=t;emptyTimer=setTimeout(()=>{context.set('emptyTimer',null);if((context.get('automationMode')||'manual')==='auto')apply('EMPTY',0,'No people continuously detected for 5 minutes');},EMPTY_DELAY_MS);context.set('emptyTimer',emptyTimer);}node.status({fill:'yellow',shape:'ring',text:'empty; OFF in 5 minutes'});return null;}\nif(now-(context.get('lastApply')||0)<MIN_CHANGE_MS)return null;apply(target,count,'Applied occupancy stage '+target);return null;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 570,
+    "y": 200,
+    "wires": [
+      [
+        "out_mqtt",
+        "debug_actions"
+      ]
+    ]
+  },
+  {
+    "id": "out_mqtt",
+    "type": "mqtt out",
+    "z": "tab_labos_complete",
+    "name": "Publish Relay Commands + Health",
+    "topic": "",
+    "qos": "0",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "broker_labos",
+    "x": 900,
+    "y": 180,
+    "wires": []
+  },
+  {
+    "id": "debug_actions",
+    "type": "debug",
+    "z": "tab_labos_complete",
+    "name": "Automation Messages",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 880,
+    "y": 230,
+    "wires": []
+  },
+  {
+    "id": "tick",
+    "type": "inject",
+    "z": "tab_labos_complete",
+    "name": "Health Check Every 10 Seconds",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "10",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/automation/tick",
+    "payload": "tick",
+    "payloadType": "str",
+    "x": 190,
+    "y": 390,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "auto",
+    "type": "inject",
+    "z": "tab_labos_complete",
+    "name": "ENABLE AUTO MODE",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/automation/mode",
+    "payload": "auto",
+    "payloadType": "str",
+    "x": 190,
+    "y": 440,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "manual",
+    "type": "inject",
+    "z": "tab_labos_complete",
+    "name": "ENABLE MANUAL MODE",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/automation/mode",
+    "payload": "manual",
+    "payloadType": "str",
+    "x": 190,
+    "y": 480,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "test0",
+    "type": "inject",
+    "z": "tab_labos_complete",
+    "name": "TEST: 0 People",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/vision/people_count",
+    "payload": "0",
+    "payloadType": "num",
+    "x": 190,
+    "y": 540,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "test1",
+    "type": "inject",
+    "z": "tab_labos_complete",
+    "name": "TEST: 1 Person",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/vision/people_count",
+    "payload": "1",
+    "payloadType": "num",
+    "x": 190,
+    "y": 580,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "test2",
+    "type": "inject",
+    "z": "tab_labos_complete",
+    "name": "TEST: 2 People",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/vision/people_count",
+    "payload": "2",
+    "payloadType": "num",
+    "x": 190,
+    "y": 620,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  },
+  {
+    "id": "test4",
+    "type": "inject",
+    "z": "tab_labos_complete",
+    "name": "TEST: 4 People",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "lab/vision/people_count",
+    "payload": "4",
+    "payloadType": "num",
+    "x": 190,
+    "y": 660,
+    "wires": [
+      [
+        "fn_complete"
+      ]
+    ]
+  }
+]
